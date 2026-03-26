@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Nutroide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0b0b0b; color: #e0e0e0; }
+        .accent-wine { color: #720917; }
+        .card-nutroide { background-color: #1a1a1a; border: 1px solid #720917; border-radius: 15px; }
+        .btn-wine { background-color: #720917; color: white; border: none; }
+        .btn-wine:hover { background-color: #a11225; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h1 class="text-center mb-4"><span class="accent-wine">Nutroide</span> Dashboard</h1>
+
+        <!-- resumo do dia -->
+        <div class="row text-center mb-4">
+            <div class="col-3">
+                <div class="card-nutroide p-2">
+                    <small>Calorias</small>
+                    <h3 id="total-kcal">{{ totais['kcal'] or 0 }}</h3>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="card-nutroide p-2">
+                    <small>Proteína</small>
+                    <h3 id="total-prot">{{ totais['prot'] or 0 }}g</h3>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="card-nutroide p-2">
+                    <small>Carbo</small>
+                    <h3 id="total-carb">{{ totais['carb'] or 0 }}g</h3>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="card-nutroide p-2">
+                    <small>Gordura</small>
+                    <h3 id="total-gord">{{ totais['gord'] or 0 }}g</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- entrada do chat -->
+        <div class="card-nutroide p-4 mb-4">
+            <h5>O que você comeu?</h5>
+            <div class="input-group">
+                <input type="text" id="chat-input" class="form-control bg-dark text-white border-secondary" placeholder="Ex: 2 ovos e 1 pão integral">
+                <button class="btn btn-wine" id="send-btn">Registrar</button>
+            </div>
+            <small id="status-msg" class="text-secondary mt-2 d-block"></small>
+        </div>
+
+        <!-- refeicoes do dia -->
+        <h5>Refeições de Hoje</h5>
+        <ul class="list-group" id="meal-list">
+            {% for item in historico %}
+            <li class="list-group-item bg-dark text-white border-secondary d-flex justify-content-between">
+                {{ item['titulo'] }} <span>{{ item['kcal'] }} kcal</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
