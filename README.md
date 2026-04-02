@@ -3,13 +3,10 @@
 
 1. Description
     
-    ---
-    
     Nutroide is a full-stack web aplication that can help you understand what you actually ate in a day. Throught artifical intelligence, the app show and register the macronutrients of each meal.
     
 2. Key Features
     
-    ---
     
     - Nutroide accepts natural language, which is perfect for users that only know the food’s name, but nothing about your nutritional informations.
     - The dashboard is updated in real-time, without requiring a page refresh, by using asynchronous JavaScript (Fetch API).
