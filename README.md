@@ -7,20 +7,15 @@
     
 2. Key Features
     
-    
     - Nutroide accepts natural language, which is perfect for users that only know the food’s name, but nothing about your nutritional informations.
     - The dashboard is updated in real-time, without requiring a page refresh, by using asynchronous JavaScript (Fetch API).
     - All data is storage in a structured SQLite database, ensuring meal history.
 3. Technical Stack & Design Choices
     
-    ---
-    
     - The main utility of Nutroide is to calculate macronutrients and to do that, a simple backend in Python (Flask) using a Google Gemini API and JSON manipulation is enought.
     - The frontend was made with Bootstrap to deliever a responsive experience for the user.
     - Instead of a simple table, I designed a relational schema with a one-to-many relationship between meals and individual food items
 4. How to run
-    
-    ---
     
     1. download all the files
     2. open terminal in the repository folder
