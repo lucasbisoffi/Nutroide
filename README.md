@@ -45,4 +45,4 @@
         python app.py
         ```
         
-    8. access the local server at http://127.0.0.1:5000 in your browser.
+    8. in your browser, access the local server at http://127.0.0.1:5000.
