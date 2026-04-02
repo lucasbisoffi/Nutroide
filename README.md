@@ -1,6 +1,5 @@
-### Nutroide — AI-Powered Nutritional
+## Nutroide — AI-Powered Nutritional
 
----
 
 1. Description
     
