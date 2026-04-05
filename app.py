@@ -14,7 +14,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "DEFAULT_KEY")
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # lista de modelos disponiveis:
-# for m in client.models.list(): print(f"Modelo disponível: {m.name}")   
+for m in client.models.list(): print(f"Modelo disponível: {m.name}")   
 
 def get_db_connection():
     conn = sqlite3.connect('nutroide.db')
@@ -50,15 +50,16 @@ def chat():
     mensagem_usuario = dados_entrada.get("texto")
     
     prompt = f"""
-    Você é o Nutroide, um assistente especializado em nutrição.
-    Sua tarefa é extrair alimentos e quantidades da frase do usuário.
-    Responda APENAS com um objeto JSON puro, sem as crases de markdown (sem ```json), seguindo este modelo:
+    You are Nutroide, a multilingual nutrition assistant.
+    Your task is to extract food items and quantities from the user's input, regardless of the language used.
+    
+    RESPOND ONLY with a raw JSON object (no markdown, no backticks), using this exact structure:
     {{
-        "titulo": "Nome da refeição",
+        "titulo": "A short name for the meal",
         "itens": [
             {{
-                "alimento": "nome do alimento",
-                "quantidade": "medida",
+                "alimento": "food name",
+                "quantidade": "measure",
                 "proteina": 0.0,
                 "carboidrato": 0.0,
                 "gordura": 0.0,
@@ -66,12 +67,13 @@ def chat():
             }}
         ]
     }}
-    Frase do usuário: "{mensagem_usuario}"
+    
+    User input: "{mensagem_usuario}"
     """
 
     try:
         response = client.models.generate_content(
-            model='gemini-flash-latest',
+            model='gemini-flash-lite-latest',
             contents=prompt
         )
         
