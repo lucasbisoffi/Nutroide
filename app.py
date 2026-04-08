@@ -2,7 +2,7 @@ import os
 import sqlite3
 import json
 from google import genai
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -24,27 +24,60 @@ def get_db_connection():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-@app.route("/register_test")
-def register_test():
-    nome = "Lucas Bisoffi"
-    email = "lucas@teste.com"
-    hash_senha = generate_password_hash("123456")
-    
-    # 'with' para garantir que a conexão feche sozinha se der erro
-    try:
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        nome = request.form.get("nome")
+        email = request.form.get("email")
+        senha = request.form.get("senha")
+        
+        hash_senha = generate_password_hash(senha)
+        
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.execute(
+                    "INSERT INTO humanos (nome, email, senha_hash) VALUES (?, ?, ?)",
+                    (nome, email, hash_senha)
+                )
+                conn.commit()
+                # Loga o usuário automaticamente após o registro
+                session["user_id"] = cursor.lastrowid
+                session["user_name"] = nome
+            return redirect(url_for("index"))
+        except sqlite3.IntegrityError:
+            return "Email já cadastrado", 400
+            
+    return render_template("register.html")
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email")
+        senha = request.form.get("senha")
+        
         with get_db_connection() as conn:
-            conn.execute(
-                "INSERT INTO humanos (nome, email, senha_hash) VALUES (?, ?, ?)",
-                (nome, email, hash_senha)
-            )
-            # é preciso confirmar a gravação
-            conn.commit() 
-        return "Registrado via SQL!"
-    except sqlite3.IntegrityError:
-        return "Erro: Email já existe."
+            user = conn.execute("SELECT * FROM humanos WHERE email = ?", (email,)).fetchone()
+            
+            if user and check_password_hash(user["senha_hash"], senha):
+                session["user_id"] = user["id"]
+                session["user_name"] = user["nome"]
+                return redirect(url_for("index"))
+            else:
+                return "Login inválido", 401
+                
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    if "user_id" not in session:
+        return jsonify({"erro": "Faça login primeiro"}), 401
+
+    user_id = session["user_id"]
     # pega o texto do usuário via JSON
     dados_entrada = request.get_json()
     mensagem_usuario = dados_entrada.get("texto")
@@ -84,7 +117,7 @@ def chat():
             # inserindo refeicao teste
             cursor = conn.execute(
                 "INSERT INTO refeicoes (humano_id, titulo) VALUES (?, ?)",
-                (1, dados_refeicao.get("titulo", "Refeição"))
+                (user_id, dados_refeicao.get("titulo", "Refeição"))
             )
             # pega o ID que o banco acabou de criar
             refeicao_id = cursor.lastrowid 
@@ -142,8 +175,10 @@ def chat():
 
 @app.route("/")
 def index():
-    # testando com user de id = 1
-    user_id = 1
+    if "user_id" not in session:
+        return jsonify({"erro": "Faça login primeiro"}), 401
+
+    user_id = session["user_id"]
     
     with get_db_connection() as conn:
         # busca a soma de macros do dia atual

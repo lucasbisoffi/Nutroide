@@ -1,15 +1,17 @@
-"use strict";
-// 2. Seleção de Elementos com Tipagem Estrita
+// 2. Seleção com "Type Casting" (Dizemos ao TS exatamente o que os elementos são)
+// O 'as ...' resolve o erro de "propriedade value não existe"
 const sendBtn = document.getElementById('send-btn');
 const input = document.getElementById('chat-input');
 const statusMsg = document.getElementById('status-msg');
 const mealList = document.getElementById('meal-list');
-// 3. Função Principal Assíncrona
+// 3. Função de registro
 const registrarRefeicao = async () => {
+    // Verificamos se os elementos existem (resolve o erro de "possivelmente null")
+    if (!input || !statusMsg || !mealList)
+        return;
     const texto = input.value.trim();
     if (!texto)
         return;
-    // Feedback visual
     statusMsg.innerText = "Nutroide analisando...";
     input.value = "";
     try {
@@ -18,12 +20,9 @@ const registrarRefeicao = async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ texto })
         });
-        if (!response.ok)
-            throw new Error("Erro na rede");
         const result = await response.json();
         if (result.status === 'sucesso') {
             statusMsg.innerText = "Refeição registrada!";
-            // Atualização do DOM com segurança de tipos
             updateDashboard(result.novos_totais);
             addMealToList(result.refeicao_titulo, result.refeicao_kcal);
         }
@@ -32,11 +31,10 @@ const registrarRefeicao = async () => {
         }
     }
     catch (error) {
-        console.error("Falha na requisição:", error);
-        statusMsg.innerText = "Erro de conexão com o servidor.";
+        console.error("Erro:", error);
+        statusMsg.innerText = "Erro de conexão.";
     }
 };
-// 4. Funções Auxiliares (Modularização)
 function updateDashboard(totais) {
     const kcalEl = document.getElementById('total-kcal');
     const protEl = document.getElementById('total-prot');
@@ -52,13 +50,13 @@ function updateDashboard(totais) {
         gordEl.innerText = `${totais.gord}g`;
 }
 function addMealToList(titulo, kcal) {
+    if (!mealList)
+        return;
     const novoItem = document.createElement('li');
     novoItem.className = "list-group-item bg-dark text-white border-secondary d-flex justify-content-between align-items-center";
-    novoItem.innerHTML = `
-        <span>${titulo}</span>
-        <span class="text-secondary">${kcal} kcal</span>
-    `;
+    novoItem.innerHTML = `<span>${titulo}</span><span class="text-secondary">${kcal} kcal</span>`;
     mealList.prepend(novoItem);
 }
-// 5. Event Listener com Optional Chaining
+// Listener com checagem de existência
 sendBtn?.addEventListener('click', registrarRefeicao);
+export {};
