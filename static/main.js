@@ -1,12 +1,8 @@
-// 2. Seleção com "Type Casting" (Dizemos ao TS exatamente o que os elementos são)
-// O 'as ...' resolve o erro de "propriedade value não existe"
 const sendBtn = document.getElementById('send-btn');
 const input = document.getElementById('chat-input');
 const statusMsg = document.getElementById('status-msg');
 const mealList = document.getElementById('meal-list');
-// 3. Função de registro
 const registrarRefeicao = async () => {
-    // Verificamos se os elementos existem (resolve o erro de "possivelmente null")
     if (!input || !statusMsg || !mealList)
         return;
     const texto = input.value.trim();
@@ -57,6 +53,5 @@ function addMealToList(titulo, kcal) {
     novoItem.innerHTML = `<span>${titulo}</span><span class="text-secondary">${kcal} kcal</span>`;
     mealList.prepend(novoItem);
 }
-// Listener com checagem de existência
 sendBtn?.addEventListener('click', registrarRefeicao);
 export {};

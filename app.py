@@ -5,7 +5,6 @@ from google import genai
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 
 load_dotenv()
 app = Flask(__name__)
@@ -13,14 +12,11 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "DEFAULT_KEY")
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-# lista de modelos disponiveis:
 for m in client.models.list(): print(f"Modelo disponível: {m.name}")   
 
 def get_db_connection():
     conn = sqlite3.connect('nutroide.db')
-    # resultados como dicionários
     conn.row_factory = sqlite3.Row
-    # ativa as chaves estrangeiras para efeito de 'deletar em cascata' funcionar
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
@@ -40,7 +36,6 @@ def register():
                     (nome, email, hash_senha)
                 )
                 conn.commit()
-                # Loga o usuário automaticamente após o registro
                 session["user_id"] = cursor.lastrowid
                 session["user_name"] = nome
             return redirect(url_for("index"))
@@ -78,7 +73,6 @@ def chat():
         return jsonify({"erro": "Faça login primeiro"}), 401
 
     user_id = session["user_id"]
-    # pega o texto do usuário via JSON
     dados_entrada = request.get_json()
     mensagem_usuario = dados_entrada.get("texto")
     
@@ -110,19 +104,15 @@ def chat():
             contents=prompt
         )
         
-        # tenta converter o texto do gemini em um dicionário Python real
         dados_refeicao = json.loads(response.text)
         
         with get_db_connection() as conn:
-            # inserindo refeicao teste
             cursor = conn.execute(
                 "INSERT INTO refeicoes (humano_id, titulo) VALUES (?, ?)",
                 (user_id, dados_refeicao.get("titulo", "Refeição"))
             )
-            # pega o ID que o banco acabou de criar
             refeicao_id = cursor.lastrowid 
 
-            # inserindo cada item da lista que a IA gerou
             for item in dados_refeicao["itens"]:
                 conn.execute(
                     """INSERT INTO itens_refeicao 
@@ -139,19 +129,16 @@ def chat():
                     )
                 )
             
-            # salva todos os registros (essencial)
             conn.commit() 
 
-        # busca os macros atualizados do dia
         novos_totais = conn.execute("""
             SELECT SUM(calorias) as kcal, SUM(proteina) as prot, 
                 SUM(carboidrato) as carb, SUM(gordura) as gord
             FROM itens_refeicao i
             JOIN refeicoes r ON i.refeicao_id = r.id
-            WHERE r.humano_id = 1 AND date(r.data_hora, 'localtime') = date('now', 'localtime')
-        """).fetchone()
+            WHERE r.humano_id = ? AND date(r.data_hora, 'localtime') = date('now', 'localtime')
+        """, (user_id,)).fetchone()
 
-        # calcula o total APENAS da refeição atual
         kcal_refeicao_atual = conn.execute(
             "SELECT SUM(calorias) FROM itens_refeicao WHERE refeicao_id = ?", 
             (refeicao_id,)
@@ -169,19 +156,17 @@ def chat():
             "refeicao_kcal": round(kcal_refeicao_atual or 0, 1)
         })
     except Exception as e:
-        # log de erro no terminal
         print(f"Erro detalhado: {e}") 
         return jsonify({"erro": "Não consegui processar a refeição", "detalhe": str(e)}), 400
 
 @app.route("/")
 def index():
     if "user_id" not in session:
-        return jsonify({"erro": "Faça login primeiro"}), 401
+        return redirect(url_for("login"))
 
     user_id = session["user_id"]
     
     with get_db_connection() as conn:
-        # busca a soma de macros do dia atual
         totais = conn.execute("""
             SELECT 
                 SUM(i.calorias) as kcal, 
@@ -193,7 +178,6 @@ def index():
             WHERE r.humano_id = ? AND date(r.data_hora, 'localtime') = date('now', 'localtime')
         """, (user_id,)).fetchone()
 
-        # busca a lista de refeições de hoje para exibir
         historico = conn.execute("""
             SELECT r.titulo, SUM(i.calorias) as kcal, r.data_hora
             FROM refeicoes r

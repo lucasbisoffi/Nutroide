@@ -14,8 +14,10 @@
 </head>
 <body>
     <div class="container py-4">
-        <h1 class="text-center mb-4"><span class="accent-wine">Nutroide</span> Dashboard</h1>
-
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="text-center flex-grow-1"><span class="accent-wine">Nutroide</span> Dashboard</h1>
+            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger">Sair</a>
+        </div>
         <!-- resumo do dia -->
         <div class="row text-center mb-4">
             <div class="col-3">
