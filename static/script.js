@@ -1,15 +1,12 @@
 "use strict";
-// 2. Seleção de Elementos com Tipagem Estrita
 const sendBtn = document.getElementById('send-btn');
 const input = document.getElementById('chat-input');
 const statusMsg = document.getElementById('status-msg');
 const mealList = document.getElementById('meal-list');
-// 3. Função Principal Assíncrona
 const registrarRefeicao = async () => {
     const texto = input.value.trim();
     if (!texto)
         return;
-    // Feedback visual
     statusMsg.innerText = "Nutroide analisando...";
     input.value = "";
     try {
@@ -23,7 +20,6 @@ const registrarRefeicao = async () => {
         const result = await response.json();
         if (result.status === 'sucesso') {
             statusMsg.innerText = "Refeição registrada!";
-            // Atualização do DOM com segurança de tipos
             updateDashboard(result.novos_totais);
             addMealToList(result.refeicao_titulo, result.refeicao_kcal);
         }
@@ -60,5 +56,4 @@ function addMealToList(titulo, kcal) {
     `;
     mealList.prepend(novoItem);
 }
-// 5. Event Listener com Optional Chaining
 sendBtn?.addEventListener('click', registrarRefeicao);

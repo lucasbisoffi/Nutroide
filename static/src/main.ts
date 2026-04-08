@@ -1,4 +1,3 @@
-// 1. Interfaces para garantir o contrato com o Python
 interface NovosTotais {
     kcal: number;
     prot: number;
@@ -13,16 +12,12 @@ interface NutroideResponse {
     novos_totais: NovosTotais;
 }
 
-// 2. Seleção com "Type Casting" (Dizemos ao TS exatamente o que os elementos são)
-// O 'as ...' resolve o erro de "propriedade value não existe"
 const sendBtn = document.getElementById('send-btn') as HTMLButtonElement | null;
 const input = document.getElementById('chat-input') as HTMLInputElement | null;
 const statusMsg = document.getElementById('status-msg') as HTMLElement | null;
 const mealList = document.getElementById('meal-list') as HTMLUListElement | null;
 
-// 3. Função de registro
 const registrarRefeicao = async (): Promise<void> => {
-    // Verificamos se os elementos existem (resolve o erro de "possivelmente null")
     if (!input || !statusMsg || !mealList) return;
 
     const texto = input.value.trim();
@@ -73,9 +68,6 @@ function addMealToList(titulo: string, kcal: number): void {
     mealList.prepend(novoItem);
 }
 
-// Listener com checagem de existência
 sendBtn?.addEventListener('click', registrarRefeicao);
 
-// O segredo final: exportar algo vazio transforma o arquivo em um MÓDULO.
-// Isso resolve o erro de "Cannot redeclare block-scoped variable".
 export {};
