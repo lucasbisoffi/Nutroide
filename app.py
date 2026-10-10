@@ -1,6 +1,7 @@
 import os
-import sqlite3
 import json
+import psycopg
+from psycopg.rows import dict_row
 from google import genai
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
@@ -11,13 +12,10 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "DEFAULT_KEY")
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-for m in client.models.list(): print(f"Modelo disponível: {m.name}")   
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_db_connection():
-    conn = sqlite3.connect('nutroide.db')
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
     return conn
 
 @app.route("/register", methods=["GET", "POST"])
@@ -31,16 +29,20 @@ def register():
         
         try:
             with get_db_connection() as conn:
-                cursor = conn.execute(
-                    "INSERT INTO humanos (nome, email, senha_hash) VALUES (?, ?, ?)",
-                    (nome, email, hash_senha)
-                )
-                conn.commit()
-                session["user_id"] = cursor.lastrowid
-                session["user_name"] = nome
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO humanos (nome, email, senha_hash) VALUES (%s, %s, %s) RETURNING id",
+                        (nome, email, hash_senha)
+                    )
+                    user_id = cursor.fetchone()["id"]
+                    conn.commit()
+                    
+                    session["user_id"] = user_id
+                    session["user_name"] = nome
             return redirect(url_for("index"))
-        except sqlite3.IntegrityError:
-            return "Email já cadastrado", 400
+        except Exception as e:
+            print(f"Erro no registro: {e}")
+            return "Email já cadastrado ou erro no servidor", 400
             
     return render_template("register.html")
 
@@ -51,7 +53,9 @@ def login():
         senha = request.form.get("senha")
         
         with get_db_connection() as conn:
-            user = conn.execute("SELECT * FROM humanos WHERE email = ?", (email,)).fetchone()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM humanos WHERE email = %s", (email,))
+                user = cursor.fetchone()
             
             if user and check_password_hash(user["senha_hash"], senha):
                 session["user_id"] = user["id"]
@@ -104,45 +108,58 @@ def chat():
             contents=prompt
         )
         
-        dados_refeicao = json.loads(response.text)
+        texto_resposta = response.text.strip()
+        if texto_resposta.startswith("```json"):
+            texto_resposta = texto_resposta[7:]
+        if texto_resposta.endswith("```"):
+            texto_resposta = texto_resposta[:-3]
+            
+        dados_refeicao = json.loads(texto_resposta.strip())
         
         with get_db_connection() as conn:
-            cursor = conn.execute(
-                "INSERT INTO refeicoes (humano_id, titulo) VALUES (?, ?)",
-                (user_id, dados_refeicao.get("titulo", "Refeição"))
-            )
-            refeicao_id = cursor.lastrowid 
-
-            for item in dados_refeicao["itens"]:
-                conn.execute(
-                    """INSERT INTO itens_refeicao 
-                    (refeicao_id, alimento, quantidade, calorias, proteina, carboidrato, gordura) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        refeicao_id, 
-                        item["alimento"], 
-                        item["quantidade"], 
-                        item["calorias"], 
-                        item["proteina"], 
-                        item["carboidrato"], 
-                        item["gordura"]
-                    )
+            with conn.cursor() as cursor:
+                # Inserir Refeição
+                cursor.execute(
+                    "INSERT INTO refeicoes (humano_id, titulo) VALUES (%s, %s) RETURNING id",
+                    (user_id, dados_refeicao.get("titulo", "Refeição"))
                 )
-            
-            conn.commit() 
+                refeicao_id = cursor.fetchone()["id"]
 
-        novos_totais = conn.execute("""
-            SELECT SUM(calorias) as kcal, SUM(proteina) as prot, 
-                SUM(carboidrato) as carb, SUM(gordura) as gord
-            FROM itens_refeicao i
-            JOIN refeicoes r ON i.refeicao_id = r.id
-            WHERE r.humano_id = ? AND date(r.data_hora, 'localtime') = date('now', 'localtime')
-        """, (user_id,)).fetchone()
+                # Inserir Itens
+                for item in dados_refeicao["itens"]:
+                    cursor.execute(
+                        """INSERT INTO itens_refeicao 
+                        (refeicao_id, alimento, quantidade, calorias, proteina, carboidrato, gordura) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (
+                            refeicao_id, 
+                            item["alimento"], 
+                            item["quantidade"], 
+                            item["calorias"], 
+                            item["proteina"], 
+                            item["carboidrato"], 
+                            item["gordura"]
+                        )
+                    )
+                conn.commit() 
 
-        kcal_refeicao_atual = conn.execute(
-            "SELECT SUM(calorias) FROM itens_refeicao WHERE refeicao_id = ?", 
-            (refeicao_id,)
-        ).fetchone()[0]
+                # Buscar novos totais do dia (usando CURRENT_DATE do Postgres)
+                cursor.execute("""
+                    SELECT SUM(i.calorias) as kcal, SUM(i.proteina) as prot, 
+                        SUM(i.carboidrato) as carb, SUM(i.gordura) as gord
+                    FROM itens_refeicao i
+                    JOIN refeicoes r ON i.refeicao_id = r.id
+                    WHERE r.humano_id = %s AND DATE(r.data_hora) = CURRENT_DATE
+                """, (user_id,))
+                novos_totais = cursor.fetchone()
+
+                # Calorias da refeição atual
+                cursor.execute(
+                    "SELECT SUM(calorias) as total FROM itens_refeicao WHERE refeicao_id = %s", 
+                    (refeicao_id,)
+                )
+                res_kcal = cursor.fetchone()
+                kcal_refeicao_atual = res_kcal["total"] if res_kcal and res_kcal["total"] else 0
 
         return jsonify({
             "status": "sucesso",
@@ -153,7 +170,7 @@ def chat():
                 "gord": round(novos_totais['gord'] or 0, 1)
             },
             "refeicao_titulo": dados_refeicao.get("titulo"),
-            "refeicao_kcal": round(kcal_refeicao_atual or 0, 1)
+            "refeicao_kcal": round(kcal_refeicao_atual, 1)
         })
     except Exception as e:
         print(f"Erro detalhado: {e}") 
@@ -167,27 +184,33 @@ def index():
     user_id = session["user_id"]
     
     with get_db_connection() as conn:
-        totais = conn.execute("""
-            SELECT 
-                SUM(i.calorias) as kcal, 
-                SUM(i.proteina) as prot, 
-                SUM(i.carboidrato) as carb, 
-                SUM(i.gordura) as gord
-            FROM itens_refeicao i
-            JOIN refeicoes r ON i.refeicao_id = r.id
-            WHERE r.humano_id = ? AND date(r.data_hora, 'localtime') = date('now', 'localtime')
-        """, (user_id,)).fetchone()
+        with conn.cursor() as cursor:
+            # Totais do dia
+            cursor.execute("""
+                SELECT 
+                    SUM(i.calorias) as kcal, 
+                    SUM(i.proteina) as prot, 
+                    SUM(i.carboidrato) as carb, 
+                    SUM(i.gordura) as gord
+                FROM itens_refeicao i
+                JOIN refeicoes r ON i.refeicao_id = r.id
+                WHERE r.humano_id = %s AND DATE(r.data_hora) = CURRENT_DATE
+            """, (user_id,))
+            totais = cursor.fetchone()
 
-        historico = conn.execute("""
-            SELECT r.titulo, SUM(i.calorias) as kcal, r.data_hora
-            FROM refeicoes r
-            JOIN itens_refeicao i ON r.id = i.refeicao_id
-            WHERE r.humano_id = ? AND date(r.data_hora, 'localtime') = date('now', 'localtime')
-            GROUP BY r.id
-            ORDER BY r.data_hora DESC
-        """, (user_id,)).fetchall()
+            # Histórico do dia
+            cursor.execute("""
+                SELECT r.titulo, SUM(i.calorias) as kcal, r.data_hora
+                FROM refeicoes r
+                JOIN itens_refeicao i ON r.id = i.refeicao_id
+                WHERE r.humano_id = %s AND DATE(r.data_hora) = CURRENT_DATE
+                GROUP BY r.id, r.titulo, r.data_hora
+                ORDER BY r.data_hora DESC
+            """, (user_id,))
+            historico = cursor.fetchall()
 
     return render_template("index.html", totais=totais, historico=historico)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
