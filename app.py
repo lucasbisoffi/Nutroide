@@ -112,9 +112,6 @@ def chat():
             )
         )
 
-        # Print de segurança nos logs para vermos o que o Gemini respondeu
-        print(f"Resposta bruta da IA: {response.text}")
-
         dados_refeicao = json.loads(response.text)
         
         with get_db_connection() as conn:
@@ -127,6 +124,7 @@ def chat():
                 refeicao_id = cursor.fetchone()["id"]
 
                 # Inserir Itens
+                itens_salvos = []
                 for item in dados_refeicao["itens"]:
                     cursor.execute(
                         """INSERT INTO itens_refeicao 
@@ -142,9 +140,10 @@ def chat():
                             item["gordura"]
                         )
                     )
+                    itens_salvos.append(item)
                 conn.commit() 
 
-                # Buscar novos totais do dia (usando CURRENT_DATE do Postgres)
+                # Buscar novos totais do dia
                 cursor.execute("""
                     SELECT SUM(i.calorias) as kcal, SUM(i.proteina) as prot, 
                         SUM(i.carboidrato) as carb, SUM(i.gordura) as gord
@@ -164,6 +163,7 @@ def chat():
 
         return jsonify({
             "status": "sucesso",
+            "refeicao_id": refeicao_id,
             "novos_totais": {
                 "kcal": round(novos_totais['kcal'] or 0, 1),
                 "prot": round(novos_totais['prot'] or 0, 1),
@@ -171,11 +171,54 @@ def chat():
                 "gord": round(novos_totais['gord'] or 0, 1)
             },
             "refeicao_titulo": dados_refeicao.get("titulo"),
-            "refeicao_kcal": round(kcal_refeicao_atual, 1)
+            "refeicao_kcal": round(kcal_refeicao_atual, 1),
+            "itens": itens_salvos
         })
     except Exception as e:
         print(f"Erro detalhado: {e}") 
         return jsonify({"erro": "Não consegui processar a refeição", "detalhe": str(e)}), 400
+
+@app.route("/refeicao/<int:refeicao_id>/deletar", methods=["POST"])
+def deletar_refeicao(refeicao_id):
+    if "user_id" not in session:
+        return jsonify({"erro": "Não autorizado"}), 401
+    
+    user_id = session["user_id"]
+    
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            # Verifica se a refeição pertence ao usuário logado por segurança
+            cursor.execute("SELECT id FROM refeicoes WHERE id = %s AND humano_id = %s", (refeicao_id, user_id))
+            ref = cursor.fetchone()
+            if not ref:
+                return jsonify({"erro": "Refeição não encontrada"}), 404
+            
+            # Deleta (os itens caem em cascata pelo ON DELETE CASCADE)
+            cursor.execute("DELETE FROM refeicoes WHERE id = %s", (refeicao_id,))
+            conn.commit()
+            
+            # Recalcula totais do dia
+            cursor.execute("""
+                SELECT 
+                    SUM(i.calorias) as kcal, 
+                    SUM(i.proteina) as prot, 
+                    SUM(i.carboidrato) as carb, 
+                    SUM(i.gordura) as gord
+                FROM itens_refeicao i
+                JOIN refeicoes r ON i.refeicao_id = r.id
+                WHERE r.humano_id = %s AND DATE(r.data_hora) = CURRENT_DATE
+            """, (user_id,))
+            novos_totais = cursor.fetchone()
+
+    return jsonify({
+        "status": "sucesso",
+        "novos_totais": {
+            "kcal": round(novos_totais['kcal'] or 0, 1),
+            "prot": round(novos_totais['prot'] or 0, 1),
+            "carb": round(novos_totais['carb'] or 0, 1),
+            "gord": round(novos_totais['gord'] or 0, 1)
+        }
+    })
 
 @app.route("/")
 def index():
@@ -199,16 +242,34 @@ def index():
             """, (user_id,))
             totais = cursor.fetchone()
 
-            # Histórico do dia
+            # Histórico de refeições do dia com os itens detalhados associados
             cursor.execute("""
-                SELECT r.titulo, SUM(i.calorias) as kcal, r.data_hora
-                FROM refeicoes r
-                JOIN itens_refeicao i ON r.id = i.refeicao_id
-                WHERE r.humano_id = %s AND DATE(r.data_hora) = CURRENT_DATE
-                GROUP BY r.id, r.titulo, r.data_hora
-                ORDER BY r.data_hora DESC
+                SELECT id, titulo, data_hora 
+                FROM refeicoes 
+                WHERE humano_id = %s AND DATE(data_hora) = CURRENT_DATE 
+                ORDER BY data_hora DESC
             """, (user_id,))
-            historico = cursor.fetchall()
+            refeicoes_raw = cursor.fetchall()
+
+            historico = []
+            for ref in refeicoes_raw:
+                cursor.execute("""
+                    SELECT alimento, quantidade, calorias, proteina, carboidrato, gordura 
+                    FROM itens_refeicao 
+                    WHERE refeicao_id = %s
+                """, (ref["id"],))
+                itens = cursor.fetchall()
+                
+                # Soma calorias da refeição
+                total_kcal_ref = sum(item["calorias"] for item in itens)
+                
+                historico.append({
+                    "id": ref["id"],
+                    "titulo": ref["titulo"],
+                    "data_hora": ref["data_hora"],
+                    "kcal": round(total_kcal_ref, 1),
+                    "itens": itens
+                })
 
     return render_template("index.html", totais=totais, historico=historico)
 
