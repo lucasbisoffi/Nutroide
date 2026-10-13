@@ -3,3 +3,4 @@
 .env
 nutroide.db
 node_modules
+check_models.py

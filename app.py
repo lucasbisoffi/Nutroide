@@ -3,6 +3,7 @@ import json
 import psycopg
 from psycopg.rows import dict_row
 from google import genai
+from google.genai import types
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -104,12 +105,15 @@ def chat():
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='models/gemini-3.5-flash',
             contents=prompt,
-            config=genai.types.GenerateContentConfig(
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json"
             )
         )
+
+        # Print de segurança nos logs para vermos o que o Gemini respondeu
+        print(f"Resposta bruta da IA: {response.text}")
 
         dados_refeicao = json.loads(response.text)
         
