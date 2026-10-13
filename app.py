@@ -105,16 +105,13 @@ def chat():
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=prompt
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
         )
-        
-        texto_resposta = response.text.strip()
-        if texto_resposta.startswith("```json"):
-            texto_resposta = texto_resposta[7:]
-        if texto_resposta.endswith("```"):
-            texto_resposta = texto_resposta[:-3]
-            
-        dados_refeicao = json.loads(texto_resposta.strip())
+
+        dados_refeicao = json.loads(response.text)
         
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
