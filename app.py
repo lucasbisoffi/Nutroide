@@ -2,8 +2,7 @@ import os
 import json
 import psycopg
 from psycopg.rows import dict_row
-from google import genai
-from google.genai import types
+from groq import Groq
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,8 +11,9 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "DEFAULT_KEY")
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 def get_db_connection():
     conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
@@ -85,7 +85,7 @@ def chat():
     You are Nutroide, a multilingual nutrition assistant.
     Your task is to extract food items and quantities from the user's input, regardless of the language used.
     
-    RESPOND ONLY with a raw JSON object (no markdown, no backticks), using this exact structure:
+    You MUST respond strictly with a valid JSON object using this exact structure:
     {{
         "titulo": "A short name for the meal",
         "itens": [
@@ -104,15 +104,18 @@ def chat():
     """
 
     try:
-        response = client.models.generate_content(
-            model='models/gemini-3.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json"
-            )
+        # Chamada ultra-rápida e estável via Groq (Llama 3.3 70B)
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "system", "content": "You are a precise JSON-outputting nutrition assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
         )
 
-        dados_refeicao = json.loads(response.text)
+        resposta_texto = completion.choices[0].message.content
+        dados_refeicao = json.loads(resposta_texto)
         
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
@@ -175,7 +178,7 @@ def chat():
             "itens": itens_salvos
         })
     except Exception as e:
-        print(f"Erro detalhado: {e}") 
+        print(f"Erro detalhado na Groq: {e}") 
         return jsonify({"erro": "Não consegui processar a refeição", "detalhe": str(e)}), 400
 
 @app.route("/refeicao/<int:refeicao_id>/deletar", methods=["POST"])
@@ -242,7 +245,7 @@ def index():
             """, (user_id,))
             totais = cursor.fetchone()
 
-            # Histórico de refeições do dia com os itens detalhados associados
+            # Histórico de refeições do dia com itens e macros detalhados
             cursor.execute("""
                 SELECT id, titulo, data_hora 
                 FROM refeicoes 
@@ -260,14 +263,20 @@ def index():
                 """, (ref["id"],))
                 itens = cursor.fetchall()
                 
-                # Soma calorias da refeição
-                total_kcal_ref = sum(item["calorias"] for item in itens)
+                # Soma calorias e macros da refeição
+                total_kcal_ref = sum(item["calorias"] or 0 for item in itens)
+                total_prot_ref = sum(item["proteina"] or 0 for item in itens)
+                total_carb_ref = sum(item["carboidrato"] or 0 for item in itens)
+                total_gord_ref = sum(item["gordura"] or 0 for item in itens)
                 
                 historico.append({
                     "id": ref["id"],
                     "titulo": ref["titulo"],
                     "data_hora": ref["data_hora"],
                     "kcal": round(total_kcal_ref, 1),
+                    "prot": round(total_prot_ref, 1),
+                    "carb": round(total_carb_ref, 1),
+                    "gord": round(total_gord_ref, 1),
                     "itens": itens
                 })
 
