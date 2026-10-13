@@ -2,71 +2,143 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Nutroide</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #0b0b0b; color: #e0e0e0; }
-        .accent-wine { color: #720917; }
-        .card-nutroide { background-color: #1a1a1a; border: 1px solid #720917; border-radius: 15px; }
-        .btn-wine { background-color: #720917; color: white; border: none; }
-        .btn-wine:hover { background-color: #a11225; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutroide — Nutricionista Androide</title>
+    <!-- Fonte Inter para estética limpa/suíça -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400,500,600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        suisse: {
+                            bg: '#F8F7F4',
+                            card: '#FFFFFF',
+                            border: '#E3E1DA',
+                            text: '#1C1B1A',
+                            muted: '#706E6B',
+                            accent: '#3B5336', // Verde Oliva Orgânico
+                            danger: '#A63A3A'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="text-center flex-grow-1"><span class="accent-wine">Nutroide</span> Dashboard</h1>
-            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger">Sair</a>
-        </div>
-        <!-- resumo do dia -->
-        <div class="row text-center mb-4">
-            <div class="col-3">
-                <div class="card-nutroide p-2">
-                    <small>Calorias</small>
-                    <h3 id="total-kcal">{{ totais['kcal'] or 0 }}</h3>
-                </div>
-            </div>
-            <div class="col-3">
-                <div class="card-nutroide p-2">
-                    <small>Proteína</small>
-                    <h3 id="total-prot">{{ totais['prot'] or 0 }}g</h3>
-                </div>
-            </div>
-            <div class="col-3">
-                <div class="card-nutroide p-2">
-                    <small>Carbo</small>
-                    <h3 id="total-carb">{{ totais['carb'] or 0 }}g</h3>
-                </div>
-            </div>
-            <div class="col-3">
-                <div class="card-nutroide p-2">
-                    <small>Gordura</small>
-                    <h3 id="total-gord">{{ totais['gord'] or 0 }}g</h3>
-                </div>
-            </div>
-        </div>
+<body class="bg-suisse-bg text-suisse-text font-['Inter'] antialiased min-h-screen flex flex-col justify-between selection:bg-suisse-accent selection:text-white">
 
-        <!-- entrada do chat -->
-        <div class="card-nutroide p-4 mb-4">
-            <h5>O que você comeu?</h5>
-            <div class="input-group">
-                <input type="text" id="chat-input" class="form-control bg-dark text-white border-secondary" placeholder="Ex: 2 ovos e 1 pão integral">
-                <button class="btn btn-wine" id="send-btn">Registrar</button>
+    <div class="max-w-xl w-full mx-auto px-4 py-8 sm:py-12 flex-grow">
+        
+        <!-- Header Minimalista -->
+        <header class="flex justify-between items-center mb-8 border-b border-suisse-border pb-4">
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-suisse-text">Nutroide</h1>
+                <p class="text-xs text-suisse-muted tracking-wide uppercase mt-0.5">Assistente Nutricional</p>
             </div>
-            <small id="status-msg" class="text-secondary mt-2 d-block"></small>
-        </div>
+            <a href="{{ url_for('logout') }}" class="text-xs font-medium text-suisse-muted hover:text-suisse-danger transition-colors px-3 py-1.5 rounded border border-suisse-border hover:border-suisse-danger bg-white">
+                Encerrar Sessão
+            </a>
+        </header>
 
-        <!-- refeicoes do dia -->
-        <h5>Refeições de Hoje</h5>
-        <ul class="list-group" id="meal-list">
-            {% for item in historico %}
-            <li class="list-group-item bg-dark text-white border-secondary d-flex justify-content-between">
-                {{ item['titulo'] }} <span>{{ item['kcal'] }} kcal</span>
-            </li>
-            {% endfor %}
-        </ul>
+        <!-- Dashboard / Métricas Diárias -->
+        <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+            <div class="bg-suisse-card border border-suisse-border rounded-lg p-4 shadow-sm">
+                <span class="block text-xs font-medium text-suisse-muted uppercase tracking-wider mb-1">Calorias</span>
+                <span id="total-kcal" class="text-2xl font-semibold tracking-tight">{{ totais['kcal'] or 0 }}</span>
+                <span class="text-xs text-suisse-muted ml-0.5">kcal</span>
+            </div>
+            <div class="bg-suisse-card border border-suisse-border rounded-lg p-4 shadow-sm">
+                <span class="block text-xs font-medium text-suisse-muted uppercase tracking-wider mb-1">Proteína</span>
+                <span id="total-prot" class="text-2xl font-semibold tracking-tight">{{ totais['prot'] or 0 }}</span>
+                <span class="text-xs text-suisse-muted ml-0.5">g</span>
+            </div>
+            <div class="bg-suisse-card border border-suisse-border rounded-lg p-4 shadow-sm">
+                <span class="block text-xs font-medium text-suisse-muted uppercase tracking-wider mb-1">Carboidrato</span>
+                <span id="total-carb" class="text-2xl font-semibold tracking-tight">{{ totais['carb'] or 0 }}</span>
+                <span class="text-xs text-suisse-muted ml-0.5">g</span>
+            </div>
+            <div class="bg-suisse-card border border-suisse-border rounded-lg p-4 shadow-sm">
+                <span class="block text-xs font-medium text-suisse-muted uppercase tracking-wider mb-1">Gordura</span>
+                <span id="total-gord" class="text-2xl font-semibold tracking-tight">{{ totais['gord'] or 0 }}</span>
+                <span class="text-xs text-suisse-muted ml-0.5">g</span>
+            </div>
+        </section>
+
+        <!-- Bloco de Entrada (O que comeu?) -->
+        <section class="bg-suisse-card border border-suisse-border rounded-lg p-5 shadow-sm mb-8">
+            <label for="chat-input" class="block text-sm font-semibold mb-2">O que você comeu?</label>
+            <div class="flex gap-2">
+                <input type="text" id="chat-input" placeholder="Ex: 2 ovos mexidos e uma fatia de pão" 
+                    class="flex-grow bg-suisse-bg border border-suisse-border rounded-md px-3.5 py-2.5 text-sm focus:outline-none focus:border-suisse-accent transition-colors">
+                <button id="send-btn" class="bg-suisse-text text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-suisse-accent transition-colors flex items-center justify-center min-w-[90px]">
+                    Registrar
+                </button>
+            </div>
+            <div id="status-msg" class="text-xs text-suisse-muted mt-2.5 h-4"></div>
+        </section>
+
+        <!-- Histórico de Refeições -->
+        <section>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-suisse-muted mb-3">Refeições de Hoje</h2>
+            
+            <div id="meal-list" class="space-y-3">
+                {% if historico %}
+                    {% for ref in historico %}
+                    <div class="meal-item bg-suisse-card border border-suisse-border rounded-lg p-4 shadow-sm transition-all" data-id="{{ ref['id'] }}">
+                        <div class="flex justify-between items-center cursor-pointer">
+                            <div>
+                                <span class="font-semibold text-sm block">{{ ref['titulo'] }}</span>
+                                <!-- Macros totais da refeição -->
+                                <span class="text-xs text-suisse-muted block mt-0.5">
+                                    P: <strong class="text-suisse-text font-medium">{{ ref['prot'] }}g</strong> &bull; 
+                                    C: <strong class="text-suisse-text font-medium">{{ ref['carb'] }}g</strong> &bull; 
+                                    G: <strong class="text-suisse-text font-medium">{{ ref['gord'] }}g</strong>
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm font-semibold">{{ ref['kcal'] }} kcal</span>
+                                <button onclick="deletarRefeicao(event, {{ ref['id'] }})" class="text-suisse-muted hover:text-suisse-danger p-1 transition-colors" title="Excluir refeição">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2.2 2.2 0 0115.938 21H8.062a2.2 2.2 0 01-2.195-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Lista detalhada dos itens com seus respectivos macros -->
+                        <div class="meal-details mt-3 pt-3 border-t border-suisse-border text-xs space-y-2 text-suisse-muted">
+                            {% for item in ref['itens'] %}
+                            <div class="flex justify-between items-center bg-suisse-bg/60 p-2 rounded">
+                                <span class="font-medium text-suisse-text">{{ item['quantidade'] }} de {{ item['alimento'] }}</span>
+                                <div class="flex items-center gap-3 text-[11px]">
+                                    <span>
+                                        P: {{ item['proteina'] }}g &bull; 
+                                        C: {{ item['carboidrato'] }}g &bull; 
+                                        G: {{ item['gordura'] }}g</span>
+                                    <span class="font-semibold text-suisse-text">{{ item['calorias'] }} kcal</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div id="empty-state" class="text-center py-8 border border-dashed border-suisse-border rounded-lg text-suisse-muted text-sm">
+                        Nenhuma refeição registrada hoje.
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
     </div>
 
+    <!-- Rodapé Sutil -->
+    <footer class="text-center py-6 text-xs text-suisse-muted border-t border-suisse-border bg-white/50">
+        Nutroide Core &copy; 2026 &mdash; Precisão e Inteligência Orgânica
+    </footer>
+
+    <!-- Script JS Compilado -->
     <script type="module" src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 </html>
