@@ -104,17 +104,26 @@ def chat():
     """
 
     try:
-        # Chamada ultra-rápida e estável via Groq (Llama 3.3 70B)
+        # Chamada otimizada para o modelo OpenAI OSS na infraestrutura da Groq
         completion = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[
-                {"role": "system", "content": "You are a precise JSON-outputting nutrition assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"}
+                {
+                    "role": "system", 
+                    "content": "You are a precise nutrition assistant. You must output ONLY valid raw JSON, with no markdown formatting, no backticks, matching this structure: {\"titulo\": \"...\", \"itens\": [{\"alimento\": \"...\", \"quantidade\": \"...\", \"proteina\": 0.0, \"carboidrato\": 0.0, \"gordura\": 0.0, \"calorias\": 0.0}]}"
+                },
+                {"role": "user", "content": mensagem_usuario}
+            ]
         )
 
-        resposta_texto = completion.choices[0].message.content
+        resposta_texto = completion.choices[0].message.content.strip()
+        
+        # Limpeza robusta caso venha com markdown por insistência do modelo
+        if "```json" in resposta_texto:
+            resposta_texto = resposta_texto.split("```json")[1].split("```")[0].strip()
+        elif "```" in resposta_texto:
+            resposta_texto = resposta_texto.split("```")[1].split("```")[0].strip()
+
         dados_refeicao = json.loads(resposta_texto)
         
         with get_db_connection() as conn:
