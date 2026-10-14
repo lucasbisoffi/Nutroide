@@ -104,21 +104,20 @@ def chat():
     """
 
     try:
-        # Chamada otimizada para o modelo OpenAI OSS na infraestrutura da Groq
         completion = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system", 
-                    "content": "You are a precise nutrition assistant. You must output ONLY valid raw JSON, with no markdown formatting, no backticks, matching this structure: {\"titulo\": \"...\", \"itens\": [{\"alimento\": \"...\", \"quantidade\": \"...\", \"proteina\": 0.0, \"carboidrato\": 0.0, \"gordura\": 0.0, \"calorias\": 0.0}]}"
+                    "content": "You are a precise nutrition assistant. Your output must contain valid raw JSON matching this structure: {\"titulo\": \"...\", \"itens\": [{\"alimento\": \"...\", \"quantidade\": \"...\", \"proteina\": 0.0, \"carboidrato\": 0.0, \"gordura\": 0.0, \"calorias\": 0.0}]}. Do not include any conversational text, only output the JSON."
                 },
                 {"role": "user", "content": mensagem_usuario}
-            ]
+            ],
+            reasoning_format="parsed" 
         )
 
         resposta_texto = completion.choices[0].message.content.strip()
         
-        # Limpeza robusta caso venha com markdown por insistência do modelo
         if "```json" in resposta_texto:
             resposta_texto = resposta_texto.split("```json")[1].split("```")[0].strip()
         elif "```" in resposta_texto:
@@ -128,14 +127,12 @@ def chat():
         
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                # Inserir Refeição
                 cursor.execute(
                     "INSERT INTO refeicoes (humano_id, titulo) VALUES (%s, %s) RETURNING id",
                     (user_id, dados_refeicao.get("titulo", "Refeição"))
                 )
                 refeicao_id = cursor.fetchone()["id"]
 
-                # Inserir Itens
                 itens_salvos = []
                 for item in dados_refeicao["itens"]:
                     cursor.execute(
@@ -155,7 +152,6 @@ def chat():
                     itens_salvos.append(item)
                 conn.commit() 
 
-                # Buscar novos totais do dia
                 cursor.execute("""
                     SELECT SUM(i.calorias) as kcal, SUM(i.proteina) as prot, 
                         SUM(i.carboidrato) as carb, SUM(i.gordura) as gord
@@ -165,7 +161,6 @@ def chat():
                 """, (user_id,))
                 novos_totais = cursor.fetchone()
 
-                # Calorias da refeição atual
                 cursor.execute(
                     "SELECT SUM(calorias) as total FROM itens_refeicao WHERE refeicao_id = %s", 
                     (refeicao_id,)
@@ -199,17 +194,14 @@ def deletar_refeicao(refeicao_id):
     
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            # Verifica se a refeição pertence ao usuário logado por segurança
             cursor.execute("SELECT id FROM refeicoes WHERE id = %s AND humano_id = %s", (refeicao_id, user_id))
             ref = cursor.fetchone()
             if not ref:
                 return jsonify({"erro": "Refeição não encontrada"}), 404
             
-            # Deleta (os itens caem em cascata pelo ON DELETE CASCADE)
             cursor.execute("DELETE FROM refeicoes WHERE id = %s", (refeicao_id,))
             conn.commit()
             
-            # Recalcula totais do dia
             cursor.execute("""
                 SELECT 
                     SUM(i.calorias) as kcal, 
@@ -241,7 +233,6 @@ def index():
     
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            # Totais do dia
             cursor.execute("""
                 SELECT 
                     SUM(i.calorias) as kcal, 
@@ -254,7 +245,6 @@ def index():
             """, (user_id,))
             totais = cursor.fetchone()
 
-            # Histórico de refeições do dia com itens e macros detalhados
             cursor.execute("""
                 SELECT id, titulo, data_hora 
                 FROM refeicoes 
@@ -272,7 +262,6 @@ def index():
                 """, (ref["id"],))
                 itens = cursor.fetchall()
                 
-                # Soma calorias e macros da refeição
                 total_kcal_ref = sum(item["calorias"] or 0 for item in itens)
                 total_prot_ref = sum(item["proteina"] or 0 for item in itens)
                 total_carb_ref = sum(item["carboidrato"] or 0 for item in itens)
